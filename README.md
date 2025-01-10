@@ -57,6 +57,8 @@ XXX:\AI_ULTRASOUND_DATASET
 │   ├───record03
 │   │   ├───UltrasoundImages
 │   │   └───Labels
+│   ⋮
+│   ⋮
 ├───cadaver02_F231218
 ├───cadaver03_S231783
 ⋮

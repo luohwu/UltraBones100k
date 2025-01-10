@@ -1,5 +1,0 @@
-BCE_weight: 1
-DICE_weight: 1
-lr: 1.0e-05
-run_name: 3thin_(resnet34 FPN)_DICE[1]_BCE[1]_skeleton[0.1]_lr[1e-05] TriAug
-skeleton_weight: 0.1

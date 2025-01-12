@@ -175,7 +175,7 @@ def parse_args():
     parser.add_argument('--skeleton_weight', type=float, default=0.1, help='Weight for the skeleton loss')
     parser.add_argument('--lr', type=float, default=1e-5, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
-    parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs')
+    parser.add_argument('--num_epochs', type=int, default=110, help='Number of epochs')
     parser.add_argument('--num_workers', type=int, default=8, help='Number of workers')
     parser.add_argument('--encoder', type=str, default="resnet34 FPN", help='Encoder type for the model')
     parser.add_argument('--dataset_root_folder', type=str, default="Z:/AI_Ultrasound_dataset", help='Root directory for the dataset')

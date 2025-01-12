@@ -29,42 +29,6 @@ cadaver_ids=[
     "cadaver14_S240280"
 ]
 
-cadaver_ids_hip=[
-    "SCC-C231155-LE_",
-]
-
-class UltrasoundDatasetOverfit(Dataset):
-    def __init__(self, img_path,label_path, transform=None):
-        self.img_path=img_path
-        self.label_path=label_path
-        self.transform = transform
-
-    def __len__(self):
-        return 1
-
-    def __getitem__(self, idx):
-        # img_path_pytorch_file = self.img_path.replace(".png", ".npy")
-        img = Image.open(self.img_path).convert('L')
-        label = Image.open(self.label_path).convert('L')
-        img, label,skeleton = self.transform(img, label)
-        return img,label,skeleton
-
-
-class UltrasoundDatasetOverfit_UDF(Dataset):
-    def __init__(self, img_path,label_path, transform=None):
-        self.img_path=img_path
-        self.label_path=label_path
-        self.transform = transform
-
-    def __len__(self):
-        return 1
-
-    def __getitem__(self, idx):
-        # img_path_pytorch_file = self.img_path.replace(".png", ".npy")
-        img = Image.open(self.img_path).convert('L')
-        label = Image.open(self.label_path).convert('L')
-        img,UDFs, label,skeleton = self.transform(img, label)
-        return img,UDFs,label,skeleton
 
 
 
@@ -92,21 +56,6 @@ class UltrasoundDataset(Dataset):
 
 
 
-class UltrasoundDataset_UDF(Dataset):
-    def __init__(self, sweep_df, transform=None):
-        self.sweep_df = sweep_df
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.sweep_df)
-
-    def __getitem__(self, idx):
-        row = self.sweep_df.iloc[idx]
-        img = Image.open(row['img_path']).convert('L')
-        label = Image.open(row['label_path']).convert('L')
-        img,UDFs, label, skeleton = self.transform(img, label)
-
-        return row['img_path'],img,UDFs, label, skeleton
 
 def constructDataFrameSingleSweep(dataFolder,manual=False,img_only=False):
     if img_only:

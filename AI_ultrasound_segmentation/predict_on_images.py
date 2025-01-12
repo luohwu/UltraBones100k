@@ -42,8 +42,8 @@ def main_pure_image(example_image_folder):
         image = images[0][0]
         pred_labels = (outputs > 0.5)
         pred_label = 255 * pred_labels[0][0].cpu().numpy().astype(np.uint8)
-        pred_label = cv2.resize(pred_label, img.size[::], cv2.INTER_NEAREST_EXACT)
-        cv2.imshow("pred_label", overlap_image_with_label(img_cv2, pred_label))
+        img_cv2_resized=cv2.resize(img_cv2,(256,256))
+        cv2.imshow("pred_label", merge_images_horizontally([img_cv2_resized,overlap_image_with_label(img_cv2_resized, pred_label)]))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 

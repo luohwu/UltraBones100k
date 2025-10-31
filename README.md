@@ -8,7 +8,7 @@ This is the repository of the UltraBones100k, which is still under development. 
 In case questions, you can create a Github issue within this repository.
 
 # News
-- ***30.10.2025: We noticed inconsistencies in some file names, which have now been corrected. We recommend re-downloading the dataset. In addition, we will soon release the original CT and MRI scans to support research on topics such as multimodal fusion. Stay tuned.***
+- ***30.10.2025: We noticed inconsistencies in some file names and tracking data, which have now been corrected. We recommend re-downloading the dataset. In addition, we will soon release the original CT and MRI scans to support research on topics such as multimodal fusion. Stay tuned.***
 - 12.06.2025: We have uploaded complete bone labels (including bone shadow), enabling tasks such as full bone surface segmentation, 3D bone shape completion, and more
 - 10.06.2025: The code for 3D reconstruction from ultrasound has been added. The code provides visualization and distance evaluation against the ground-truth CT model
 - 27.05.2025: We have uploaded the CT bone models for each specimen. You can find them under the root folder of each specimen, detailed in the following section `Dataset File Structure`

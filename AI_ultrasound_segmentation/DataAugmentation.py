@@ -1,4 +1,3 @@
-import random
 
 import monai.transforms as monai_transforms
 import numpy as np
@@ -9,20 +8,7 @@ import torchvision.transforms.functional as F
 from scipy.ndimage import distance_transform_edt
 
 
-def set_seed(seed_value=42):
-    """Set seed for reproducibility."""
-    random.seed(seed_value)  # Python random module
-    np.random.seed(seed_value)  # Numpy library
-    torch.manual_seed(seed_value)  # Torch
 
-    # if using CUDA
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed_value)
-        torch.cuda.manual_seed_all(seed_value)  # if using multi-GPU
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
-set_seed()  # Call this function at the start of your script
 
 
 ALL = {

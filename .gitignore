@@ -1,3 +1,5 @@
+lightning_logs
+jobCluster.txt
 prepare_dataset_for_public.py
 __pycache__
 lightning_logs

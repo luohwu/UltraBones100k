@@ -15,7 +15,11 @@ from comet_ml import Experiment
 import os
 from monai.transforms.utils import distance_transform_edt
 
+import random
 import argparse
+import numpy as np
+
+pl.seed_everything(42, workers=True)
 
 class UltrasoundSegmentationModel(pl.LightningModule):
     def __init__(self, lr=1e-4, DICE_weight=1, BCE_weight=1, skeleton_weight=0.1,val_index=1,comet_experiment=None):
@@ -229,7 +233,7 @@ def parse_args():
     parser.add_argument('--num_epochs', type=int, default=110, help='Number of epochs')
     parser.add_argument('--num_workers', type=int, default=8, help='Number of workers')
     parser.add_argument('--encoder', type=str, default="resnet34 FPN", help='Encoder type for the model')
-    parser.add_argument('--dataset_root_folder', type=str, default="../data/AI_Ultrasound_dataset", help='Root directory for the dataset')
+    parser.add_argument('--dataset_root_folder', type=str, default="./data/AI_Ultrasound_dataset", help='Root directory for the dataset')
     parser.add_argument('--target_specimen_id', type=int, default=-1, help='for cluster training')
     return parser.parse_args()
 

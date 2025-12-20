@@ -108,7 +108,7 @@ class UltrasoundSegmentationModel(pl.LightningModule):
 
         # keep your checkpoint saving if you want
         if self.current_epoch % 10 == 0:
-            folder = os.path.join("./models", f"validation_on_{self.val_index}")
+            folder = os.path.join("./AI_ultrasound_segmentation/models", f"validation_on_{self.val_index}")
             os.makedirs(folder, exist_ok=True)
             torch.save(self.model, os.path.join(folder, f"epoch_{self.current_epoch}.pth"))
 

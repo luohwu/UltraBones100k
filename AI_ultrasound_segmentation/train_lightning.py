@@ -3,9 +3,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 import pytorch_lightning as pl
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import CometLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
+
 
 import monai
 import segmentation_models_pytorch as smp
@@ -14,8 +12,6 @@ from AI_ultrasound_segmentation.DataAugmentation import TrivialTransform
 from AI_ultrasound_segmentation.UltrasoundDataset import constructDatasetFromDataFolders, specimen_ids
 from AI_ultrasound_segmentation.LossFunctions import Binary_Segmentation_Loss
 from comet_ml import Experiment
-import numpy as np
-import time
 import os
 from monai.transforms.utils import distance_transform_edt
 
@@ -107,7 +103,7 @@ class UltrasoundSegmentationModel(pl.LightningModule):
                 )
 
         # keep your checkpoint saving if you want
-        if self.current_epoch % 50 == 0:
+        if self.current_epoch % 10 == 0:
             folder = os.path.join("./models", f"validation_on_{self.val_index}")
             os.makedirs(folder, exist_ok=True)
             torch.save(self.model, os.path.join(folder, f"epoch_{self.current_epoch}.pth"))
@@ -192,7 +188,7 @@ class UltrasoundDataModule(pl.LightningDataModule):
         data_folders_val=[]
         for specimen_id in self.specimen_ids:
             specimen_folder=os.path.join(self.dataset_root_folder,f"specimen{specimen_id:02d}")
-            US_record_folder=os.path.join(specimen_folder,"UltrasoundRecords")
+            US_record_folder=os.path.join(specimen_folder,"ultrasound_records")
             for anatomy in ["fibula","foot","tibia"]:
                 anatomy_folder=os.path.join(US_record_folder,anatomy)
                 for child_dir in os.listdir(anatomy_folder):
@@ -234,6 +230,7 @@ def parse_args():
     parser.add_argument('--num_workers', type=int, default=8, help='Number of workers')
     parser.add_argument('--encoder', type=str, default="resnet34 FPN", help='Encoder type for the model')
     parser.add_argument('--dataset_root_folder', type=str, default="../data/AI_Ultrasound_dataset", help='Root directory for the dataset')
+    parser.add_argument('--target_specimen_id', type=int, default=-1, help='for cluster training')
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -253,6 +250,8 @@ if __name__ == '__main__':
     specimen_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
     for val_id in specimen_ids:
+        if args.target_specimen_id>0 and val_id!=args.target_specimen_id:
+            continue
         print(f"current validation specimen_idx:{val_id}")
         comet_experiment=Experiment(
                     api_key=os.environ.get("COMET_API_KEY"),

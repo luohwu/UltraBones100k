@@ -1,3 +1,4 @@
+import random
 
 import monai.transforms as monai_transforms
 import numpy as np
@@ -8,7 +9,12 @@ import torchvision.transforms.functional as F
 from scipy.ndimage import distance_transform_edt
 
 
+def set_seed(seed_value=42):
+    """Set seed for reproducibility."""
+    random.seed(seed_value)  # Python random module
+    np.random.seed(seed_value)  # Numpy library
 
+set_seed()  # Call this function at the start of your script
 
 
 ALL = {

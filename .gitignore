@@ -10,7 +10,8 @@ data/**/
 __pycache__
 wandb
 runs
-
+**/.cometml-runs/
+AI_ultrasound_segmentation/models
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

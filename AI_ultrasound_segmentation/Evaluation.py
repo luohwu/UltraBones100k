@@ -5,7 +5,7 @@ import random
 from AI_ultrasound_segmentation.DataAugmentation import TrivialTransform
 from AI_ultrasound_segmentation.UltrasoundDataset import constructDatasetFromDataFolders,specimen_ids
 import time
-from Tools.generalCV import *
+from Utility.generalCV import *
 import scipy
 def set_seed(seed_testue=42):
     """Set seed for reproducibility."""

@@ -1,32 +1,30 @@
 import os
 import time
-
+import numpy as np
 import pandas as pd
 from skimage.io import imread
 
-from Tools.converter import *
+from Utility.converter import *
 from multiprocessing import Pool
+from functools import partial
 
 
-
-def construct_pcd_from_df(df_chunk):
+def construct_pcd_from_df(df_chunk, use_optimized_tracking: bool = False):
     df_chunk = df_chunk.reset_index(drop=True)
     label_pcd_merged = []
+
     for index, row in df_chunk.iterrows():
         label = imread(row['label_path'], as_gray=True)
         if 255 not in np.unique(label):
             continue
 
-        # There are two types of tracking data in `tracking.csv`: original (i.e., x) and optimized (i.e., x_optimized). Both are already temporally synchronized, so they
-        # can be used directly
-
-        # using original tracking data
-        T_tracking = vectorToMatrix([row['x'], row['y'], row['z']],
-                                    [row['euler_x'], row['euler_y'], row['euler_z']])
-
-        # using optimized tracking data
-        # T_tracking = vectorToMatrix([row['x_optimized'], row['y_optimized'], row['z_optimized']],
-        #                             [row['euler_x_optimized'], row['euler_y_optimized'], row['euler_z_optimized']])
+        # Choose which tracking data to use
+        if use_optimized_tracking:
+            T_tracking = vectorToMatrix([row['x_optimized'], row['y_optimized'], row['z_optimized']],
+                                        [row['euler_x_optimized'], row['euler_y_optimized'], row['euler_z_optimized']])
+        else:
+            T_tracking = vectorToMatrix([row['x'], row['y'], row['z']],
+                                        [row['euler_x'], row['euler_y'], row['euler_z']])
 
         # the coordinate system of the ultrasound image is defined at the top-left corner
         T_scale = np.eye(4)
@@ -38,102 +36,141 @@ def construct_pcd_from_df(df_chunk):
         if len(rows_index) < 2:
             return None
 
-        xyz_pixels = np.stack([cols_index + 0.5, rows_index + 0.5, np.zeros_like(rows_index), np.ones_like(rows_index)],
-                              axis=1).T # homogenous coordinates with [x,y,z,1]. z is always 0 for the image plane
+        xyz_pixels = np.stack(
+            [cols_index + 0.5, rows_index + 0.5, np.zeros_like(rows_index), np.ones_like(rows_index)],
+            axis=1
+        ).T  # homogenous coordinates with [x,y,z,1]. z is always 0 for the image plane
 
         calibrationT = vectorToMatrix(row['calibration_t'], row['calibration_euler'])
 
-
-        # T_scale @ xyz_pixels: convert pixels to points (unit:mm) in the ImagePlane coor
-        # calibrationT @ T_scale @ xyz_pixels: pixels(ImagePlane) -> Points (ImagePlane) -> Points (Marker space)
-        # T_tracking @ calibrationT @ T_scale @ xyz_pixels: pixels(ImagePlane) -> Points (ImagePlane) -> Points (Marker space) -> Points (CT space)
         T_img_2_world = T_tracking @ calibrationT @ T_scale
         xyz_world = (T_img_2_world @ xyz_pixels)
 
-
         label_pcd_merged.append(xyz_world.T)
+
     if label_pcd_merged:
         return np.concatenate(label_pcd_merged)
     return None
 
-def main_foot_ankle():
-    specimen_names = [
-        "specimen00",
-        "specimen01",
-        "specimen02",
-        "specimen03",
-        "specimen04",
-        "specimen05",
-        "specimen06",
-        "specimen07",
-        "specimen08",
-        "specimen09",
-        "specimen10",
-        "specimen11",
-        "specimen12",
-        "specimen13",
-        "specimen14"
-    ]
+def filter_out_untargeted_anatomy_points(US_pcd, bone_segmentation_pcds):
+    nearest_dists = np.ones(len(US_pcd.points)) * 10000
+    idx_final = np.ones(len(US_pcd.points)) * 5
+    for anatomy_idx, anatomy_pcd_gt in enumerate(bone_segmentation_pcds):
+        dist = np.asarray(US_pcd.compute_point_cloud_distance(anatomy_pcd_gt))
+        idx_temp = nearest_dists > dist
+        nearest_dists[idx_temp] = dist[idx_temp]
+        idx_final[idx_temp] = anatomy_idx
+    vals, counts = np.unique(idx_final, return_counts=True)
+    most_freq_val = vals[np.argmax(counts)]
+    indices = np.where(idx_final == most_freq_val)[0]
+    return US_pcd.select_by_index(indices)
 
+def main_3D_reconstruction(use_optimized_pose, dataset_root_folder):
 
     # calibration results. Note that the special details are the same for all sweeps.
-    calibration_t = [26.44694442, -0.52572229, 128.00100047] # unit: mm
-    calibration_euler = [92.48865621, -0.46874914, 179.2277322] # euler angles in degrees
-    scale_X = 0.05392 # mm/pixel
-    scale_Y = 0.05392 # mm/pixel
+    calibration_t = [26.44694442, -0.52572229, 128.00100047]  # unit: mm
+    calibration_euler = [92.48865621, -0.46874914, 179.2277322]  # euler angles in degrees
+    scale_X = 0.05392  # mm/pixel
+    scale_Y = 0.05392  # mm/pixel
 
-    dataset_root_folder = "../data/AI_Ultrasound_dataset"
-    specimens_involved = [1,3,4,5,6,9,10,11,12,13,14]
-    for specimen_id in specimens_involved:
-        specimen_name = specimen_names[specimen_id]
+
+    for specimen_id in range(1, 15):
+        anatomies=["fibula", "tibia", "foot"]
+        specimen_folder = os.path.join(dataset_root_folder, f"specimen{specimen_id:02d}")
+        UltrasoundRecords_folder = os.path.join(specimen_folder, "UltrasoundRecords")
 
         # read CT model data
-        CT_model_mesh=o3d.io.read_triangle_mesh(os.path.join(dataset_root_folder,specimen_name,"CT_bone_model.stl"))
-        CT_model_pcd=CT_model_mesh.sample_points_uniformly(1000000)
-
-        for record_id in range(1,15):
-            dataFolder=os.path.join(dataset_root_folder,specimen_name,f"record{record_id:02d}")
-            assert os.path.isdir(dataFolder),"dataset folder does not exist"
-
-            label_folder = os.path.join(dataFolder, 'Labels')
-            timestamps_target = [int(file.split('_')[0]) for file in os.listdir(label_folder) if
-                                 file.endswith("_label.png")]
-            tracking_df = pd.read_csv(os.path.join(dataFolder, 'tracking.csv'))
 
 
-            tracking_df = tracking_df[tracking_df['timestamp'].isin(timestamps_target)]
+        bone_segmentation_meshes=[o3d.io.read_triangle_mesh(os.path.join(specimen_folder, "CT_bone_segmentations", f"{anatomy}.stl")) for anatomy in anatomies]
+        bone_segmentation_pcds=[mesh.sample_points_uniformly(500000) for mesh in bone_segmentation_meshes]
+        bone_segmentation_meshes_merged = o3d.io.read_triangle_mesh(
+            os.path.join(specimen_folder, "CT_bone_segmentations", "CT_bone_model_merged.stl"))
+        bone_segmentation_pcds_merged = bone_segmentation_meshes_merged.sample_points_uniformly(1000000)
 
-            # update the details for each frame
-            tracking_df['label_path'] = tracking_df['timestamp'].apply(
-                lambda x: os.path.join(label_folder, f"{x}_label.png"))
-            tracking_df['calibration_t'] = [calibration_t] * len(tracking_df)
-            tracking_df['calibration_euler'] = [calibration_euler] * len(tracking_df)
-            tracking_df['scale_X'] = [scale_X] * len(tracking_df)
-            tracking_df['scale_Y'] = [scale_Y] * len(tracking_df)
+        for anatomy in anatomies:
+            anatomy_folder = os.path.join(UltrasoundRecords_folder, anatomy)
+            for record_folder_name in os.listdir(anatomy_folder):
+                record_folder = os.path.join(anatomy_folder, record_folder_name)
+                reconstruction_folder = os.path.join(record_folder, "3D_reconstructions")
+                os.makedirs(reconstruction_folder, exist_ok=True)
+                if not os.path.isdir(record_folder):
+                    print(f"record folder does not exist: {record_folder}")
+                    continue
+                label_folder = os.path.join(record_folder, 'Labels')
+                timestamps_target = [
+                    int(file.split('_')[0]) for file in os.listdir(label_folder)
+                    if file.endswith("_label.png")
+                ]
+                tracking_df = pd.read_csv(os.path.join(record_folder, 'tracking.csv'))
+                tracking_df = tracking_df[tracking_df['timestamp'].isin(timestamps_target)]
 
-            # Chunking the DataFrame
-            num_processes = 6
-            pool = Pool(processes=num_processes)
-            chunk_size = int(np.ceil(len(tracking_df) / num_processes))
-            df_chunks = [tracking_df.iloc[i:i + chunk_size] for i in range(0, len(tracking_df), chunk_size)]
+                # update the details for each frame
+                tracking_df['label_path'] = tracking_df['timestamp'].apply(
+                    lambda x: os.path.join(label_folder, f"{x}_label.png")
+                )
+                tracking_df['calibration_t'] = [calibration_t] * len(tracking_df)
+                tracking_df['calibration_euler'] = [calibration_euler] * len(tracking_df)
+                tracking_df['scale_X'] = [scale_X] * len(tracking_df)
+                tracking_df['scale_Y'] = [scale_Y] * len(tracking_df)
 
-            # Processing in parallel
-            results = pool.map(construct_pcd_from_df, df_chunks)
-            pool.close()
-            pool.join()
+                # Chunking the DataFrame
+                num_processes = 6
+                pool = Pool(processes=num_processes)
+                chunk_size = int(np.ceil(len(tracking_df) / num_processes))
+                df_chunks = [tracking_df.iloc[i:i + chunk_size] for i in range(0, len(tracking_df), chunk_size)]
 
-            # Combining results
-            xyz_with_feature=np.concatenate(results)
-            xyz = xyz_with_feature[:,:3]
-            reconstruction_pcd = o3d.geometry.PointCloud()
-            reconstruction_pcd.points = o3d.utility.Vector3dVector(xyz)
+                # Processing in parallel (pass the flag into each worker)
+                worker = partial(construct_pcd_from_df, use_optimized_tracking=use_optimized_pose)
+                results = pool.map(worker, df_chunks)
+                pool.close()
+                pool.join()
 
+                # Drop Nones (in case any chunk returned None)
+                results = [r for r in results if r is not None]
+                if not results:
+                    print("No points reconstructed for this record (all chunks empty).")
+                    continue
 
-            dis=np.asarray(reconstruction_pcd.compute_point_cloud_distance(CT_model_pcd))
-            print(f"CD distance from US-reconstruction to CT-pcd: {dis.mean()}")
-            o3d.visualization.draw_geometries([reconstruction_pcd,CT_model_mesh])
+                # Combining results
+                xyz_with_feature = np.concatenate(results)
+                xyz = xyz_with_feature[:, :3]
+                reconstruction_pcd = o3d.geometry.PointCloud()
+                reconstruction_pcd.points = o3d.utility.Vector3dVector(xyz)
+                # reconstruction_pcd=reconstruction_pcd.farthest_point_down_sample(40000)
+                reconstruction_pcd=reconstruction_pcd.voxel_down_sample(0.1)
 
+                # Each record targets a single anatomy. However, surfaces from nearby bones can also appear in the scan.
+                # For example, during a fibula sweep, parts of the tibia may be captured in regions where the bones are close.
+                # The filtered point cloud below removes points likely belonging to non-target (untargeted) anatomies.
+                # This can be useful when you want a reconstruction focused only on the intended anatomy.
+                reconstruction_pcd_filtered=filter_out_untargeted_anatomy_points(reconstruction_pcd,bone_segmentation_pcds)
+
+                dis = np.asarray(reconstruction_pcd.compute_point_cloud_distance(bone_segmentation_pcds_merged))
+                print(f"{record_folder} CD distance from US-reconstruction to CT-pcd: {dis.mean()}")
+                if use_optimized_pose:
+                    o3d.io.write_point_cloud(
+                        os.path.join(reconstruction_folder, "reconstruction_pcd_optimizedPose.xyz"),
+                        reconstruction_pcd
+                    )
+                    o3d.io.write_point_cloud(
+                        os.path.join(reconstruction_folder, "reconstruction_pcd_filtered_optimizedPose.xyz"),
+                        reconstruction_pcd_filtered
+                    )
+                else:
+                    o3d.io.write_point_cloud(
+                        os.path.join(reconstruction_folder, "reconstruction_pcd.xyz"),
+                        reconstruction_pcd
+                    )
+
+                    o3d.io.write_point_cloud(
+                        os.path.join(reconstruction_folder, "reconstruction_pcd_filtered.xyz"),
+                        reconstruction_pcd_filtered
+                    )
 
 
 if __name__ == '__main__':
-    main_foot_ankle()
+    main_3D_reconstruction(dataset_root_folder="./../data/AI_Ultrasound_dataset", use_optimized_pose=False)
+    main_3D_reconstruction(dataset_root_folder="./../data/AI_Ultrasound_dataset", use_optimized_pose=True)
+    # main_3D_reconstruction(dataset_root_folder="F:/AI_Ultrasound_dataset_full", use_optimized_pose=False)
+    # main_3D_reconstruction(dataset_root_folder="F:/AI_Ultrasound_dataset_full", use_optimized_pose=True)

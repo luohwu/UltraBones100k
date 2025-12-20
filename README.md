@@ -46,46 +46,55 @@ We are currently collecting data for additional anatomies, including the spine a
 
 The dataset is organized as follows:
 
-- **Root Folder**: `AI_Ultrasound_dataset` is the main directory.
-- **Specimen Folders**: Each specimen folder (e.g., `specimen01`, `specimen02`) contains data for one specimen.
-- **Record Folders**: Each specimen folder has subfolders for each record (e.g., `record01`, `record02`).
-- **Labels**: Contains the label files for that record.
-- **UltrasoundImages**: Contains the ultrasound image files for that record.
+- **Root folder**: `AI_Ultrasound_dataset` is the main directory.
+- **Specimen folders**: Each specimen folder (e.g., `specimen01`, `specimen02`) contains data for a single specimen.
+- **CT_bone_segmentations**: Contains CT-derived bone segmentations, including the fibula, foot, and tibia.
+- **ultrasound_records**: Within each specimen folder, this directory contains subfolders for each ultrasound record (e.g., `record01`, `record02`). Records are organized by the targeted anatomy. For example, `**/ultrasound_records/tibia/record05` indicates that `record05` targets the tibia.
+- **UltrasoundImages**: Contains the ultrasound image files for the corresponding record.
+- **Labels**: Contains partial labels for that record.
+- **Labels_full**: Contains full labels for the record (including regions in the acoustic shadow).
+- **3D_reconstructions**: Contains 3D point clouds reconstructed from the tracking data, using either ground-truth labels or predicted labels.
+
 
 ```
 XXX:\AI_ULTRASOUND_DATASET
 ├───specimen01
-│   ├───CT_bone_model.stl
-│   ├───record01
-│   │   ├───UltrasoundImages
-│   │   │   └───timestamp.png
-│   │   ├───Labels
-│   │   │   └───timestamp_label.png
-│   │   ├───Labels_full
-│   │   │   └───timestamp_label.png
-│   │   └───tracking.csv
-│   ├───record02
-│   │   ├───UltrasoundImages
-│   │   │   └───timestamp.png
-│   │   ├───Labels
-│   │   │   └───timestamp_label.png
-│   │   ├───Labels_full
-│   │   │   └───timestamp_label.png
-│   │   └───tracking.csv
-│   ├───record03
-│   │   ├───UltrasoundImages
-│   │   │   └───timestamp.png
-│   │   ├───Labels
-│   │   │   └───timestamp_label.png
-│   │   ├───Labels_full
-│   │   │   └───timestamp_label.png
-│   │   └───tracking.csv
-│   ⋮
-│   ⋮
+│   ├───CT_bone_segmentations
+│   │   ├───CT_bone_model_merged.stl (fibula+foot+tibia)
+│   │   ├───fibula.stl
+│   │   ├───foot.stl
+│   │   └───tibia.stl
+│   └───ultrasound_records
+│       ├───fibula
+│       │   ├───record01
+│       │   │   ├───tracking.csv
+│       │   │   ├───UltrasoundImages
+│       │   │   │   └───{timestamp}.png
+│       │   │   ├───Labels
+│       │   │   │   └───{timestamp}_label.png
+│       │   │   ├───Labels_full
+│       │   │   │   └───{timestamp}_label.png
+│       │   │   └───3D_reconstructions
+│       │   │       ├── reconstruction_pcd.xyz (point-cloud reconstruction using the original tracking data)
+│       │   │       ├── reconstruction_pcd_filtered.xyz (filtered reconstruction that removes points not from the targeted anatomy; e.g., if `record01` targets the tibia, fibula points are filtered out)
+│       │   │       ├── reconstruction_pcd_optimizedPose.xyz (point-cloud reconstruction using optimized tracking/pose data)
+│       │   │       └── reconstruction_pcd_filtered_optimizedPose.xyz (filtered reconstruction using optimized tracking/pose data)
+
+│       │   │
+│       │   ├───record02
+│       │   ⋮
+│       │   └───recordxx
+│       ├───foot
+│       │   ⋮
+│       └───tibia
+│           ⋮
+│    
+│   
 ├───specimen02
 ├───specimen03
 ⋮
 ⋮
+└───specimen14
 ```
 # Tracking data
 There are two types of tracking data in `tracking.csv`: original (i.e., x) and optimized (i.e., x_optimized). Both are already temporally synchronized. An example code for 3D reconstruction is availble at 
@@ -98,7 +107,10 @@ The training script is located at:
 ``` AI_ultrasound_segmentation/train_lightning.py ```. Train the model using one NVIDIA V100 for 100 epochs, which typically takes around 10 hours. The training process leverages a ResNet-34 FPN architecture with a combination of DICE and BCE losses, and a learning rate of 1e-05.
 By default, we assume the dataset folder located at ```../data/AI_Ultrasound_dataset/```
 
-To train the model, just run `python AI_ultrasound_segmentation/train_lightning.py`
+To train the model, just run `python AI_ultrasound_segmentation/train_lightning.py`.
+
+🚨**Recommendation:** We recommend a specimen-wise leave-one-out training scheme. For example, train on specimens 1–13 and validate on specimen 14.
+
 
 
 # Pretrained model

@@ -104,3 +104,4 @@ Werkzeug==3.0.6
 widgetsnbextension==4.0.13
 yarl==1.18.3
 zipp==3.21.0
+pyhocon==0.3.61

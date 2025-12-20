@@ -13,7 +13,7 @@ import segmentation_models_pytorch as smp
 from AI_ultrasound_segmentation.DataAugmentation import TrivialTransform
 from AI_ultrasound_segmentation.UltrasoundDataset import constructDatasetFromDataFolders, specimen_ids
 from AI_ultrasound_segmentation.LossFunctions import Binary_Segmentation_Loss
-
+from comet_ml import Experiment
 import numpy as np
 import time
 import os
@@ -22,10 +22,8 @@ from monai.transforms.utils import distance_transform_edt
 import argparse
 
 class UltrasoundSegmentationModel(pl.LightningModule):
-    def __init__(self, lr=1e-4, DICE_weight=1, BCE_weight=1, skeleton_weight=0.1,val_index=1):
+    def __init__(self, lr=1e-4, DICE_weight=1, BCE_weight=1, skeleton_weight=0.1,val_index=1,comet_experiment=None):
         super(UltrasoundSegmentationModel, self).__init__()
-        # Save hyperparameters
-        self.save_hyperparameters()
         self.lr = lr
         self.DICE_weight = DICE_weight
         self.BCE_weight = BCE_weight
@@ -42,6 +40,8 @@ class UltrasoundSegmentationModel(pl.LightningModule):
 
         # Define loss function
         self.loss_function = Binary_Segmentation_Loss(DICE_weight=self.DICE_weight, BCE_weight=self.BCE_weight, skeleton_weight=self.skeleton_weight)
+
+        self.comet_experiment=comet_experiment
 
     def forward(self, x):
         return self.model(x)
@@ -86,31 +86,88 @@ class UltrasoundSegmentationModel(pl.LightningModule):
         _, images, labels, skeletons = batch
         outputs = self(images)
         loss = self.loss_function(outputs, labels, skeletons)
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        # Tell Lightning to aggregate this over the epoch (mean by default)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
         return loss
+
     def on_train_epoch_end(self):
-        if self.current_epoch%5==0:
-            folder=os.path.join("./models",f"validation_on_{self.val_index}")
-            if not os.path.isdir(folder):
-                os.mkdir(folder)
-            torch.save(self.model,os.path.join(folder,f"epoch_{self.current_epoch}.pth"))
+        # Grab the epoch-aggregated value Lightning computed
+        train_loss_epoch = self.trainer.callback_metrics.get("train_loss")
+
+        if train_loss_epoch is not None:
+            train_loss_epoch = float(train_loss_epoch.detach().cpu())
+            print(f"Epoch {self.current_epoch} Train loss (epoch): {train_loss_epoch:.5f}")
+
+            if self.comet_experiment:
+                self.comet_experiment.log_metrics(
+                    {"train_loss": train_loss_epoch},
+                    epoch=self.current_epoch
+                )
+
+        # keep your checkpoint saving if you want
+        if self.current_epoch % 50 == 0:
+            folder = os.path.join("./models", f"validation_on_{self.val_index}")
+            os.makedirs(folder, exist_ok=True)
+            torch.save(self.model, os.path.join(folder, f"epoch_{self.current_epoch}.pth"))
 
     def validation_step(self, batch, batch_idx):
         _, images, labels, skeletons = batch
         outputs = self(images)
         loss = self.loss_function(outputs, labels, skeletons)
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        # Compute Dice score
         dice_score = self.compute_dice_score(torch.sigmoid(outputs), labels)
-        self.log('val_dice', dice_score / len(labels), on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        # Compute Chamfer Distance and other metrics
-        chamfer_distance, hausdorff_distance, hausdorff_distance_95 = self.compute_chamfer_distance(torch.sigmoid(outputs), labels)
+        chamfer_distance, hausdorff_distance, hausdorff_distance_95 = self.compute_chamfer_distance(
+            torch.sigmoid(outputs), labels
+        )
         num_samples = len(labels)
-        self.log('val_chamfer_distance', chamfer_distance / num_samples, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_hausdorff_distance', hausdorff_distance / num_samples, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_hausdorff_distance_95', hausdorff_distance_95 / num_samples, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        # Log for epoch aggregation
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val_dice", dice_score / num_samples, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val_cd", chamfer_distance / num_samples, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val_hd", hausdorff_distance / num_samples, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val_hd95", hausdorff_distance_95 / num_samples, on_step=False, on_epoch=True, prog_bar=True,
+                 logger=True)
+
+    def on_validation_epoch_end(self):
+        m = self.trainer.callback_metrics  # contains epoch-aggregated logged metrics
+
+        val_loss = m.get("val_loss")
+        val_dice = m.get("val_dice")
+        val_cd = m.get("val_cd")
+        val_hd = m.get("val_hd")
+        val_hd95 = m.get("val_hd95")
+
+        # Some can be None early on; guard it
+        def to_float(x):
+            return None if x is None else float(x.detach().cpu())
+
+        val_loss_f = to_float(val_loss)
+        val_dice_f = to_float(val_dice)
+        val_cd_f = to_float(val_cd)
+        val_hd_f = to_float(val_hd)
+        val_hd95_f = to_float(val_hd95)
+
+        if val_loss_f is not None:
+            print(
+                f"Epoch {self.current_epoch} Val loss (epoch): {val_loss_f:.5f}, "
+                f"DICE: {val_dice_f:.5f}, CD: {val_cd_f:.5f}, HD: {val_hd_f:.5f}, HD95: {val_hd95_f:.5f}"
+            )
+
+            if self.comet_experiment:
+                self.comet_experiment.log_metrics(
+                    {
+                        "val_loss": val_loss_f,
+                        "val_dice": val_dice_f,
+                        "val_cd": val_cd_f,
+                        "val_hd": val_hd_f,
+                        "val_hd95": val_hd95_f,
+                    },
+                    epoch=self.current_epoch
+                )
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.lr)
@@ -118,31 +175,38 @@ class UltrasoundSegmentationModel(pl.LightningModule):
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
 class UltrasoundDataModule(pl.LightningDataModule):
-    def __init__(self, dataset_root_folder,batch_size=32, num_workers=12,validation_index=1,train_index=[1,3,4,5,6,9,10,11,12,13,14]):
+    def __init__(self, dataset_root_folder, batch_size=32, num_workers=12, validation_index=1, specimen_ids=range(1,15)):
         super(UltrasoundDataModule, self).__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.dataset_root_folder=dataset_root_folder
-        self.train_all_index=train_index
+        self.specimen_ids=specimen_ids
         self.val_idx=validation_index
-
     def prepare_data(self):
         # Data preparation logic (if any)
         pass
 
     def setup(self, stage=None):
 
-        specimens_involved_train = [idx for idx in self.train_all_index if idx!= self.val_idx]
         data_folders_train = []
-        for idx in specimens_involved_train:
-            specimen_id = specimen_ids[idx]
-            data_folders_train += [f"{self.dataset_root_folder}/{specimen_id}/record{i:02d}" for i in range(1, 15)]
-        data_folders_val = [f"{self.dataset_root_folder}/{specimen_ids[self.val_idx]}/record{i:02d}" for i in range(1, 15)]
+        data_folders_val=[]
+        for specimen_id in self.specimen_ids:
+            specimen_folder=os.path.join(self.dataset_root_folder,f"specimen{specimen_id:02d}")
+            US_record_folder=os.path.join(specimen_folder,"UltrasoundRecords")
+            for anatomy in ["fibula","foot","tibia"]:
+                anatomy_folder=os.path.join(US_record_folder,anatomy)
+                for child_dir in os.listdir(anatomy_folder):
+                    if specimen_id ==self.val_idx:
+                        data_folders_val.append(os.path.join(anatomy_folder,child_dir))
+                    else:
+                        data_folders_train.append(os.path.join(anatomy_folder,child_dir))
+
+
 
 
 
         transform_train = TrivialTransform(num_ops=5, image_size=[256,256], train=True)
-        transform_val = TrivialTransform(num_ops=1, image_size=[256,256], train=False)
+        transform_val = TrivialTransform(num_ops=0, image_size=[256,256], train=False)
 
         self.dataset_train = constructDatasetFromDataFolders(data_folders_train, transform_train)
         self.dataset_val = constructDatasetFromDataFolders(data_folders_val, transform_val)
@@ -186,29 +250,30 @@ if __name__ == '__main__':
     encoder = args.encoder
     dataset_root_folder = args.dataset_root_folder
 
-    specimen_index_list = [1, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14]
+    specimen_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
-    for val_idx in specimen_index_list:
-        train_index = [idx for idx in specimen_index_list if idx != val_idx]
-        print(f"current validation specimen_idx:{specimen_ids[val_idx]}")
-        model = UltrasoundSegmentationModel(lr=lr, DICE_weight=DICE_weight, BCE_weight=BCE_weight, skeleton_weight=skeleton_weight,val_index=val_idx)
-        data_module = UltrasoundDataModule(batch_size=batch_size, dataset_root_folder=dataset_root_folder, num_workers=num_workers,validation_index=val_idx,train_index=train_index)
+    for val_id in specimen_ids:
+        print(f"current validation specimen_idx:{val_id}")
+        comet_experiment=Experiment(
+                    api_key=os.environ.get("COMET_API_KEY"),
+                    project_name="us-segmentation",
+                    )
+        comet_experiment.set_name(f"fpn_resnet34_val{val_id}")
+
+        model = UltrasoundSegmentationModel(lr=lr, DICE_weight=DICE_weight, BCE_weight=BCE_weight, skeleton_weight=skeleton_weight, val_index=val_id,
+                                            comet_experiment=comet_experiment)
+        data_module = UltrasoundDataModule(batch_size=batch_size, dataset_root_folder=dataset_root_folder, num_workers=num_workers, validation_index=val_id,
+                                           specimen_ids=specimen_ids)
 
         # Setup checkpointing
-        checkpoint_callback = ModelCheckpoint(
-            dirpath=os.path.join(f"./models/validation_on_{val_idx}"),
-            filename='epoch-{epoch}',
-            save_top_k=-1,
-            every_n_epochs=5,
-        )
 
         # Initialize the trainer with placeholders commented
         trainer = pl.Trainer(
             max_epochs=num_epochs,
             accelerator="gpu",
             devices=1,
-            log_every_n_steps=5,
         )
 
         # Start training
         trainer.fit(model, datamodule=data_module)
+        comet_experiment.end()

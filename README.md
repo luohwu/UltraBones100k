@@ -9,7 +9,7 @@ In case questions, you can create a Github issue within this repository.
 
 # News
 
-- **12.12.2025:** The dataset has been reorganized according to the intended anatomy during scanning. Pretrained segmentation models (trained using a specimen-wise leave-one-out setup) have been uploaded, along with predicted bone labels for each frame. The 3D reconstruction code has been updated, and point clouds with ground-truth (GT) labels and predicted labels are now available.
+- **21.12.2025:** The dataset has been reorganized according to the intended anatomy during scanning. Pretrained segmentation models (trained using a specimen-wise leave-one-out setup) have been uploaded, along with predicted bone labels for each frame. The 3D reconstruction code has been updated, and point clouds with ground-truth (GT) labels and predicted labels are now available.
 
 # Requirements 
 Run the following command to install all the packages listed in the `requirements.txt` file: 

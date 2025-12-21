@@ -43,9 +43,3 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       "git+https://github.com/cong-yi/DualMesh-UDF" \
       "git+https://github.com/sbarratt/torch_interpolations.git"
 
-# Local extensions last (avoid invalidating earlier layers)
-COPY extensions ./extensions
-
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-build-isolation ./extensions/chamfer_dist \
- && pip install --no-build-isolation ./extensions/pointnet2_ops_lib

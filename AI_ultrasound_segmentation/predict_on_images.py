@@ -62,7 +62,8 @@ def main_whole_dataset(root_folder):
 
     specimen_ids = range(1,15)
     for specimen_id in specimen_ids:
-        model_path = f"models/validation_on_{specimen_id}/epoch_30.pth"
+        specimen_folder=os.path.join(root_folder,f"specimen{specimen_id:02d}")
+        model_path=os.path.join(specimen_folder,"pretrained_model","epoch_30.pth")
         model = torch.load(model_path, weights_only=False)
         model = model.to(device)
         specimen_folder = os.path.join(root_folder, f"specimen{specimen_id:02d}")

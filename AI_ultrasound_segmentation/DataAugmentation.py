@@ -7,6 +7,7 @@ import torchvision.transforms.v2 as v2
 from torchvision.transforms.functional import InterpolationMode
 import torchvision.transforms.functional as F
 from scipy.ndimage import distance_transform_edt
+from Utility.US_bone_augmentation import *
 
 
 def set_seed(seed_value=42):
@@ -33,7 +34,7 @@ ALL = {
             "equalize": v2.RandomEqualize(p=1.0),
             "median_blur": monai_transforms.MedianSmooth(radius=3),
             # "scaling": v2.RandomAffine(degrees=0, scale=[0.8, 1.2]),  # Sensible range based on prior works
-            # "gaussian_noise": monai_transforms.RandGaussianNoise(prob=1.0),
+            "gaussian_noise": monai_transforms.RandGaussianNoise(prob=1.0),
             # "elastic_transform": v2.ElasticTransform(),
             # "grid_distortion": monai_transforms.RandGridDistortion(prob=1.0),
         }
@@ -99,6 +100,8 @@ class TrivialTransform(torch.nn.Module):
     def __call__(self, image, label):
         image = F.to_tensor(image)
         image = F.resize(image, self.image_size, interpolation=InterpolationMode.BILINEAR)
+        # PS=F.to_tensor(phase_symmetry(image[0].numpy()))
+        # image_contrast_enhanced=F.to_tensor(local_graylevel_scurve(image[0].numpy()))
         label = F.resize(label, self.image_size, interpolation=InterpolationMode.NEAREST_EXACT)
 
         if self.train:
@@ -110,15 +113,21 @@ class TrivialTransform(torch.nn.Module):
                 op = ALL[operation_name]
                 if isinstance(op, v2.RandomHorizontalFlip) or isinstance(op, v2.RandomVerticalFlip):
                     image = F.hflip(image) if isinstance(op, v2.RandomHorizontalFlip) else F.vflip(image)
+                    # image_contrast_enhanced = F.hflip(image_contrast_enhanced) if isinstance(op, v2.RandomHorizontalFlip) else F.vflip(image_contrast_enhanced)
+                    # PS = F.hflip(PS) if isinstance(op, v2.RandomHorizontalFlip) else F.vflip(PS)
                     label = F.hflip(label) if isinstance(op, v2.RandomHorizontalFlip) else F.vflip(label)
                 elif isinstance(op, v2.RandomRotation):
                     angle = op.get_params(op.degrees)
                     image = F.rotate(image, angle, interpolation=InterpolationMode.BILINEAR)
+                    # image_contrast_enhanced = F.rotate(image_contrast_enhanced, angle, interpolation=InterpolationMode.BILINEAR)
+                    # PS = F.rotate(PS, angle, interpolation=InterpolationMode.BILINEAR)
                     label = F.rotate(label, angle, interpolation=InterpolationMode.NEAREST)
                 elif isinstance(op, v2.RandomAffine):
                     params = op.get_params(
                         op.degrees, op.translate, op.scale, op.shear, self.image_size)
                     image = F.affine(image, *params, interpolation=InterpolationMode.BILINEAR)
+                    # image_contrast_enhanced = F.affine(image_contrast_enhanced, *params, interpolation=InterpolationMode.BILINEAR)
+                    # PS = F.affine(PS, *params, interpolation=InterpolationMode.BILINEAR)
                     label = F.affine(label, *params, interpolation=InterpolationMode.NEAREST)
 
                 else:
@@ -133,6 +142,8 @@ class TrivialTransform(torch.nn.Module):
         skeleton = np.zeros_like(distance_map)
         skeleton[distance_map <= 1] = 1
 
+        # input=torch.cat([image, PS], dim=0)
+        # return input, F.to_tensor(label),F.to_tensor(skeleton)
         return image, F.to_tensor(label),F.to_tensor(skeleton)
 
 

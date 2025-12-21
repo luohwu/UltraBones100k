@@ -19,7 +19,7 @@ import random
 import argparse
 import numpy as np
 
-pl.seed_everything(42, workers=True)
+
 
 class UltrasoundSegmentationModel(pl.LightningModule):
     def __init__(self, lr=1e-4, DICE_weight=1, BCE_weight=1, skeleton_weight=0.1,val_index=1,comet_experiment=None):
@@ -216,11 +216,15 @@ class UltrasoundDataModule(pl.LightningDataModule):
 
 
     def train_dataloader(self):
-        return DataLoader(self.dataset_train, batch_size=self.batch_size, shuffle=True, persistent_workers=True,pin_memory=True,
+        return DataLoader(self.dataset_train, batch_size=self.batch_size, shuffle=True,
+                          persistent_workers=(self.num_workers>0),
+                          # pin_memory=True,
                           num_workers=self.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.dataset_val, batch_size=self.batch_size, shuffle=False,persistent_workers=True,pin_memory=True,
+        return DataLoader(self.dataset_val, batch_size=self.batch_size, shuffle=False,
+                          persistent_workers=(self.num_workers>0),
+                          # pin_memory=True,
                           num_workers=self.num_workers)
 
 def parse_args():
@@ -238,6 +242,7 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == '__main__':
+    pl.seed_everything(42, workers=True)
     args = parse_args()
 
     # Unpack hyperparameters from args
@@ -262,7 +267,7 @@ if __name__ == '__main__':
                     project_name="us-segmentation",
                     )
         comet_experiment.set_name(f"fpn_resnet34_val{val_id}")
-
+        # set comet_experiment=None if you dont use it
         model = UltrasoundSegmentationModel(lr=lr, DICE_weight=DICE_weight, BCE_weight=BCE_weight, skeleton_weight=skeleton_weight, val_index=val_id,
                                             comet_experiment=comet_experiment)
         data_module = UltrasoundDataModule(batch_size=batch_size, dataset_root_folder=dataset_root_folder, num_workers=num_workers, validation_index=val_id,
@@ -279,4 +284,3 @@ if __name__ == '__main__':
 
         # Start training
         trainer.fit(model, datamodule=data_module)
-        comet_experiment.end()

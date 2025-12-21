@@ -7,7 +7,34 @@ from skimage.io import imread
 from Utility.converter import *
 from multiprocessing import Pool
 from functools import partial
+import argparse
 
+def downsample_to_n_random(pcd: o3d.geometry.PointCloud, target_n: int, seed: int = 42) -> o3d.geometry.PointCloud:
+    """
+    Return a point cloud with exactly target_n points by random sampling (no replacement).
+    If pcd has fewer than target_n points, it returns a copy unchanged.
+    Preserves colors and normals if present.
+    """
+    if target_n <= 0:
+        raise ValueError("target_n must be > 0")
+
+    n = len(pcd.points)
+    if n <= target_n:
+        return pcd.clone() if hasattr(pcd, "clone") else o3d.geometry.PointCloud(pcd)
+
+    rng = np.random.default_rng(seed)
+    idx = rng.choice(n, size=target_n, replace=False)
+
+    pts = np.asarray(pcd.points)[idx]
+    out = o3d.geometry.PointCloud()
+    out.points = o3d.utility.Vector3dVector(pts)
+
+    if pcd.has_colors():
+        out.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors)[idx])
+    if pcd.has_normals():
+        out.normals = o3d.utility.Vector3dVector(np.asarray(pcd.normals)[idx])
+
+    return out
 
 def construct_pcd_from_df(df_chunk, use_optimized_tracking: bool = False):
     df_chunk = df_chunk.reset_index(drop=True)
@@ -65,7 +92,7 @@ def filter_out_untargeted_anatomy_points(US_pcd, bone_segmentation_pcds):
     indices = np.where(idx_final == most_freq_val)[0]
     return US_pcd.select_by_index(indices)
 
-def main_3D_reconstruction(use_optimized_pose, dataset_root_folder):
+def main_3D_reconstruction(dataset_root_folder,use_optimized_pose=False ,use_pred_label=True):
 
     # calibration results. Note that the special details are the same for all sweeps.
     calibration_t = [26.44694442, -0.52572229, 128.00100047]  # unit: mm
@@ -77,7 +104,7 @@ def main_3D_reconstruction(use_optimized_pose, dataset_root_folder):
     for specimen_id in range(1, 15):
         anatomies=["fibula", "tibia", "foot"]
         specimen_folder = os.path.join(dataset_root_folder, f"specimen{specimen_id:02d}")
-        UltrasoundRecords_folder = os.path.join(specimen_folder, "UltrasoundRecords")
+        UltrasoundRecords_folder = os.path.join(specimen_folder, "ultrasound_records")
 
         # read CT model data
 
@@ -92,23 +119,41 @@ def main_3D_reconstruction(use_optimized_pose, dataset_root_folder):
             anatomy_folder = os.path.join(UltrasoundRecords_folder, anatomy)
             for record_folder_name in os.listdir(anatomy_folder):
                 record_folder = os.path.join(anatomy_folder, record_folder_name)
-                reconstruction_folder = os.path.join(record_folder, "3D_reconstructions")
-                os.makedirs(reconstruction_folder, exist_ok=True)
                 if not os.path.isdir(record_folder):
                     print(f"record folder does not exist: {record_folder}")
                     continue
-                label_folder = os.path.join(record_folder, 'Labels')
-                timestamps_target = [
-                    int(file.split('_')[0]) for file in os.listdir(label_folder)
-                    if file.endswith("_label.png")
-                ]
                 tracking_df = pd.read_csv(os.path.join(record_folder, 'tracking.csv'))
+
+                if use_pred_label==True:
+                    label_folder = os.path.join(record_folder, 'Labels_pred')
+                    timestamps_target = [
+                        int(file.split('_')[0]) for file in os.listdir(label_folder)
+                        if file.endswith("_label_pred.png")
+                    ]
+                    tracking_df['label_path'] = tracking_df['timestamp'].apply(
+                        lambda x: os.path.join(label_folder, f"{x}_label_pred.png")
+                    )
+
+                    reconstruction_folder = os.path.join(record_folder, "3D_reconstructions","with_pred_labels")
+                    os.makedirs(reconstruction_folder, exist_ok=True)
+                else:
+                    label_folder = os.path.join(record_folder, 'Labels')
+                    timestamps_target = [
+                        int(file.split('_')[0]) for file in os.listdir(label_folder)
+                        if file.endswith("_label.png")
+                    ]
+                    tracking_df['label_path'] = tracking_df['timestamp'].apply(
+                        lambda x: os.path.join(label_folder, f"{x}_label.png")
+                    )
+
+                    reconstruction_folder = os.path.join(record_folder, "3D_reconstructions","with_GT_labels")
+                    os.makedirs(reconstruction_folder, exist_ok=True)
+
+
                 tracking_df = tracking_df[tracking_df['timestamp'].isin(timestamps_target)]
 
                 # update the details for each frame
-                tracking_df['label_path'] = tracking_df['timestamp'].apply(
-                    lambda x: os.path.join(label_folder, f"{x}_label.png")
-                )
+
                 tracking_df['calibration_t'] = [calibration_t] * len(tracking_df)
                 tracking_df['calibration_euler'] = [calibration_euler] * len(tracking_df)
                 tracking_df['scale_X'] = [scale_X] * len(tracking_df)
@@ -138,7 +183,8 @@ def main_3D_reconstruction(use_optimized_pose, dataset_root_folder):
                 reconstruction_pcd = o3d.geometry.PointCloud()
                 reconstruction_pcd.points = o3d.utility.Vector3dVector(xyz)
                 # reconstruction_pcd=reconstruction_pcd.farthest_point_down_sample(40000)
-                reconstruction_pcd=reconstruction_pcd.voxel_down_sample(0.1)
+                # reconstruction_pcd=reconstruction_pcd.uniform_down_sample(0.1)
+                reconstruction_pcd=downsample_to_n_random(reconstruction_pcd,int(1e6))
 
                 # Each record targets a single anatomy. However, surfaces from nearby bones can also appear in the scan.
                 # For example, during a fibula sweep, parts of the tibia may be captured in regions where the bones are close.
@@ -170,7 +216,13 @@ def main_3D_reconstruction(use_optimized_pose, dataset_root_folder):
 
 
 if __name__ == '__main__':
-    main_3D_reconstruction(dataset_root_folder="./../data/AI_Ultrasound_dataset", use_optimized_pose=False)
-    main_3D_reconstruction(dataset_root_folder="./../data/AI_Ultrasound_dataset", use_optimized_pose=True)
-    # main_3D_reconstruction(dataset_root_folder="F:/AI_Ultrasound_dataset_full", use_optimized_pose=False)
-    # main_3D_reconstruction(dataset_root_folder="F:/AI_Ultrasound_dataset_full", use_optimized_pose=True)
+    parser = argparse.ArgumentParser(description="Process ultrasound images.")
+
+    parser.add_argument('--dataset_root_folder', type=str, default="./data/AI_Ultrasound_dataset",
+                        help='Root directory for the dataset')
+    parser.add_argument('--use_optimized_pose', type=bool, default=False,
+                        help='use optimized pose or not')
+    parser.add_argument('--use_pred_label', type=bool, default=True,
+                        help='use label predictions or GT')
+    args = parser.parse_args()
+    main_3D_reconstruction(dataset_root_folder=args.dataset_root_folder, use_optimized_pose=args.use_optimized_pose,use_pred_label=args.use_pred_label)

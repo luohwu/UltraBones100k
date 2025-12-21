@@ -127,7 +127,7 @@ To train the model, run:
 
 `python AI_ultrasound_segmentation/train_lightning.py`
 
-🚨 **Recommendation:** The provided script uses a basic segmentation model. More advanced networks (e.g., nnU-Net) and more intensive parameter fine-tuning could likely improve performance.
+### 🚨 **Recommendation:** The provided script uses a basic segmentation model. More advanced networks (e.g., nnU-Net) and more intensive parameter fine-tuning could likely improve performance.
 
 # Pretrained Models
 

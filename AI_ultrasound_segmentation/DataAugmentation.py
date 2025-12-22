@@ -7,7 +7,7 @@ import torchvision.transforms.v2 as v2
 from torchvision.transforms.functional import InterpolationMode
 import torchvision.transforms.functional as F
 from scipy.ndimage import distance_transform_edt
-from Utility.US_bone_augmentation import *
+#from Utility.US_bone_augmentation import *
 
 
 def set_seed(seed_value=42):

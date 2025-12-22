@@ -67,7 +67,7 @@ XXX:\AI_ULTRASOUND_DATASET
 │   │   ├───foot.stl
 │   │   └───tibia.stl
 │   ├───pretrained_model
-│   │   └───tepoch_30.pth
+│   │   └───epoch_30.pth
 │   └───ultrasound_records
 │       ├───fibula
 │       │   ├───record01

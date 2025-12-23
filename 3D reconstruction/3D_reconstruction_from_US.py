@@ -8,7 +8,7 @@ from Utility.converter import *
 from multiprocessing import Pool
 from functools import partial
 import argparse
-
+import skimage
 def downsample_to_n_random(pcd: o3d.geometry.PointCloud, target_n: int, seed: int = 42) -> o3d.geometry.PointCloud:
     """
     Return a point cloud with exactly target_n points by random sampling (no replacement).
@@ -42,6 +42,8 @@ def construct_pcd_from_df(df_chunk, use_optimized_tracking: bool = False):
 
     for index, row in df_chunk.iterrows():
         label = imread(row['label_path'], as_gray=True)
+        # we assume the bone surface lies in the mid-line of the binary mask, this also helps reduce the number of points
+        label = skimage.morphology.skeletonize(label / 255).astype(np.uint8) * 255
         if 255 not in np.unique(label):
             continue
 
@@ -220,9 +222,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset_root_folder', type=str, default="./data/UltraBones100k",
                         help='Root directory for the dataset')
-    parser.add_argument('--use_optimized_pose', type=bool, default=False,
-                        help='use optimized pose or not')
-    parser.add_argument('--use_pred_label', type=bool, default=True,
-                        help='use label predictions or GT')
+    parser.add_argument('--use_optimized_pose',  action="store_true",help='use optimized pose or not')
+    parser.add_argument('--use_pred_label',  action="store_true",help='use label predictions or GT')
     args = parser.parse_args()
+    print(f"using optimized pose: {args.use_optimized_pose}")
+    print(f"using predicted label: {args.use_pred_label}")
     main_3D_reconstruction(dataset_root_folder=args.dataset_root_folder, use_optimized_pose=args.use_optimized_pose,use_pred_label=args.use_pred_label)

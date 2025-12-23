@@ -162,8 +162,7 @@ To reconstruct point clouds from ultrasound sweeps and evaluate the results agai
 ```
 python "3D reconstruction/3D_reconstruction_from_US.py" \
   --dataset_root_folder ./data/UltraBones100k \
-  --use_pred_label True \
-  --use_optimized_pose False
+  --use_pred_label \
 ```
 Additionally, raw reconstructed point clouds (.xyz) for each record are available under:
 

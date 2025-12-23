@@ -124,7 +124,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process ultrasound images.")
     parser.add_argument('--example_image_folder', type=str, default="./example_ultrasound_images",
                         help='Folder containing example images for processing')
-    parser.add_argument('--dataset_root_folder', type=str, default="./data/AI_Ultrasound_dataset", help='Root directory for the dataset')
+    parser.add_argument('--dataset_root_folder', type=str, default="./data/UltraBones100k", help='Root directory for the dataset')
     args = parser.parse_args()
 
     # main_pure_image(args.example_image_folder)

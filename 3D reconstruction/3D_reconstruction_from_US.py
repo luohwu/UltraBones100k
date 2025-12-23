@@ -218,7 +218,7 @@ def main_3D_reconstruction(dataset_root_folder,use_optimized_pose=False ,use_pre
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process ultrasound images.")
 
-    parser.add_argument('--dataset_root_folder', type=str, default="./data/AI_Ultrasound_dataset",
+    parser.add_argument('--dataset_root_folder', type=str, default="./data/UltraBones100k",
                         help='Root directory for the dataset')
     parser.add_argument('--use_optimized_pose', type=bool, default=False,
                         help='use optimized pose or not')

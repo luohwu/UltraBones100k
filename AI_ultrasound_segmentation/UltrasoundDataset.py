@@ -6,23 +6,6 @@ from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 from Utility.generalCV import *
 from AI_ultrasound_segmentation.DataAugmentation import TrivialTransform
-specimen_ids=[
-    "specimen00",
-    "specimen01",
-    "specimen02",
-    "specimen03",
-    "specimen04",
-    "specimen05",
-    "specimen06",
-    "specimen07",
-    "specimen08",
-    "specimen09",
-    "specimen10",
-    "specimen11",
-    "specimen12",
-    "specimen13",
-    "specimen14"
-]
 
 
 
@@ -101,36 +84,3 @@ def tensor_2_opencv(img_tensor,mean=-1,std=-1):
 
 
 
-
-def main():
-
-    dataFolders = [f"Z:/AI_Ultrasound_dataset/specimen01_F231091/Linear18/record{i:02d}" for i in [1,15]]
-    transform = TrivialTransform(num_ops=2,image_size=(256, 256),train=True)
-    dataset = constructDatasetFromDataFolders(dataFolders, transform)
-    loader = DataLoader(dataset, batch_size=5,shuffle=True)  # Load one item at a time for visualization
-    i = 0
-    while i < 100:
-        for _,images, labels,skeletons in loader:
-            img = images[0]
-            img_opencv = tensor_2_opencv(img[0], mean=0.17475835978984833, std=0.16475939750671387)
-            label = tensor_2_opencv(labels[0])
-            skeleton = tensor_2_opencv(skeletons[0])
-            # RGB_image.show()
-            cv2.imshow('img', merge_images_horizontally([img_opencv, overlap_image_with_label(img_opencv, label),
-                                                         overlap_image_with_label(img_opencv, skeleton)]))
-
-            # show_with_opencv_overlap(image_test,label_test)
-            cv2.waitKey(0)
-
-
-
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    import matplotlib
-
-    matplotlib.use('TkAgg')
-    # compute_mean_and_std()
-    # main_overfit()
-    main()
-        # break  # Only show the first set of images

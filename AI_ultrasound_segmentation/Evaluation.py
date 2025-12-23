@@ -1,9 +1,11 @@
+import os.path
+
 import torch
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import random
 from AI_ultrasound_segmentation.DataAugmentation import TrivialTransform
-from AI_ultrasound_segmentation.UltrasoundDataset import constructDatasetFromDataFolders,specimen_ids
+from AI_ultrasound_segmentation.UltrasoundDataset import constructDatasetFromDataFolders
 import time
 from Utility.generalCV import *
 import scipy
@@ -186,20 +188,28 @@ def compute_metrics_global(metrics_list):
 
 
 
-
+import argparse
 def main():
-
+    parser = argparse.ArgumentParser(description="Setup training configuration")
+    parser.add_argument('--dataset_root_folder', type=str, default="./data/UltraBones100k",
+                        help='Root directory for the dataset')
+    parser.add_argument('--target_specimen_id', type=int, default=-1, help='for cluster training')
+    args=parser.parse_args()
     batch_size = 64
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     data_folders_test = []
-    dataset_root_folder = "../data/AI_Ultrasound_dataset"
     specimens_involved_test = [2, 7,8]
     # Adjust the range as needed
-    for idx in specimens_involved_test:
-        specimen_id = specimen_ids[idx]  # Update according to how specimen_ids are formatted
-        data_folders_test += [f"{dataset_root_folder}/{specimen_id}/record{i:02d}" for i in range(1, 15)]
+    for specimen_id in specimens_involved_test:
+        specimen_folder=os.path.join(args.dataset_root_folder,f"specimen{specimen_id:02d}")
+        ultrasound_records_folder=os.path.join(specimen_folder,"ultrasound_records")
+        for anatomy in ["fibula","foot","tibia"]:
+            anatomy_folder=os.path.join(ultrasound_records_folder,anatomy)
+            for record_name in os.listdir(anatomy_folder):
+                record_folder=os.path.join(anatomy_folder,record_name)
+                data_folders_test.append(record_folder)
         #
 
     transform_test = TrivialTransform(num_ops=1, image_size=[256, 256], train=False)
@@ -208,14 +218,14 @@ def main():
                             prefetch_factor=1, persistent_workers=True)
     print(f"size of dataset,  val: {len(dataset_test)}")
 
-    model = torch.load("models/train_on_1_3_4_5_6_9_10_11_12_13_14/epoch_100.pth")
+    model = torch.load("models/train_on_1_3_4_5_6_9_10_11_12_13_14/epoch_100.pth",weights_only=False)
     model = model.to(device)
 
     # =========================================================================================================================
     precision,recall,F1_score= evaluate(model, loader_test, threshold=107)
-    result_file_name= "./result.npz"
+    result_file_name= "result.npz"
     np.savez(result_file_name, precision=precision, recall=recall, F1_score=F1_score)
-    plot_metrics("./result.npz")
+    plot_metrics("result.npz")
 
 
 
@@ -269,7 +279,7 @@ def plot_metrics(result_file):
 
 
 if __name__ == '__main__':
-    plot_metrics("./result.npz")
+    plot_metrics("result.npz")
     main()
 
 

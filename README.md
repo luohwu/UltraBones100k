@@ -47,7 +47,7 @@ We are currently collecting data for additional anatomies, including the spine a
 
 The dataset is organized as follows:
 
-- **Root folder**: `AI_Ultrasound_dataset` is the main directory.
+- **Root folder**: `UltraBones100k` is the main directory.
 - **Specimen folders**: Each specimen folder (e.g., `specimen01`, `specimen02`) contains data for a single specimen.
 - **CT_bone_segmentations**: Contains CT-derived bone segmentations, including the fibula, foot, and tibia.
 - **ultrasound_records**: Within each specimen folder, this directory contains subfolders for each ultrasound record (e.g., `record01`, `record02`). Records are organized by the targeted anatomy. For example, `**/ultrasound_records/tibia/record05` indicates that `record05` targets the tibia.
@@ -59,7 +59,7 @@ The dataset is organized as follows:
 - **Labels_pred**: the predicted bone labels using the provided pretrained model.
 
 ```
-XXX:\AI_ULTRASOUND_DATASET
+XXX:\UltraBones100k
 ├───specimen01
 │   ├───CT_bone_segmentations
 │   │   ├───CT_bone_model_merged.stl (fibula+foot+tibia)
@@ -121,7 +121,7 @@ Train the model using one NVIDIA V100 for 100 epochs, which typically takes arou
 
 By default, the dataset is assumed to be located at:
 
-`../data/AI_Ultrasound_dataset/`
+`../data/UltraBones100k/`
 
 To train the model, run:
 
@@ -161,7 +161,7 @@ To reconstruct point clouds from ultrasound sweeps and evaluate the results agai
 
 ```
 python "3D reconstruction/3D_reconstruction_from_US.py" \
-  --dataset_root_folder ./data/AI_Ultrasound_dataset \
+  --dataset_root_folder ./data/UltraBones100k \
   --use_pred_label True \
   --use_optimized_pose False
 ```

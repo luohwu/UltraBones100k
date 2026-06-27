@@ -63,7 +63,7 @@ hf download luohwu/UltraBones100k --repo-type dataset --local-dir data/UltraBone
 After downloading, unzip each `specimenXX.zip` so that the folder structure shown below is restored under `data/UltraBones100k/`.
 
 ## More anatomies
-We are currently collecting data for additional anatomies, including the spine and hip bones. Stay tuned for updates!
+The **hip** dataset is now available on the Hugging Face Hub: **[UltraBonesHip](https://huggingface.co/datasets/luohwu/UltraBonesHip)**. We are also collecting data for additional anatomies, such as the spine. Stay tuned for updates!
 ## Dataset File Structure
 
 The dataset is organized as follows:

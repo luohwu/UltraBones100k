@@ -30,20 +30,37 @@ A Dockerfile is provided in the root folder. Alternatively, you can use the Dock
 
 # Dataset downloading
 ## Lower limbs 
-1. Install Azure Storage Explorer [here](https://azure.microsoft.com/en-us/products/storage/storage-explorer).
-2. On the main page, select **"Connect to resource"**.
-3. Select "Storage account"
-4. Select "Connection string", then press Next
-5. Paste given URL (including BlobEndpoint=) into "Connection String" field and under  "Display name" write a wished name for the storage. This name is defined only for  you on your local machine and doesn't affect the storage itself
-6. In the next page select "Connect"
-7. By selecting the storage account you have named in step 6, then selecting "Blob  
-containers", you will find the shared drive
 
-The URL:
+The dataset is hosted on the **[Hugging Face Hub](https://huggingface.co/datasets/luohwu/UltraBones100k)** (CC BY 4.0). The lower-limb data is provided as one ZIP archive per specimen (`specimen01.zip` … `specimen14.zip`, ~42 GB in total).
 
+**Option 1 — Python (`huggingface_hub`):**
+```python
+from huggingface_hub import snapshot_download, hf_hub_download
+
+# Download the whole dataset
+snapshot_download(
+    repo_id="luohwu/UltraBones100k",
+    repo_type="dataset",
+    local_dir="data/UltraBones100k",
+)
+
+# ...or download a single specimen
+hf_hub_download(
+    repo_id="luohwu/UltraBones100k",
+    filename="specimen01.zip",
+    repo_type="dataset",
+    local_dir="data/UltraBones100k",
+)
 ```
-BlobEndpoint=https://rocs3.blob.core.windows.net/;QueueEndpoint=https://rocs3.queue.core.windows.net/;FileEndpoint=https://rocs3.file.core.windows.net/;TableEndpoint=https://rocs3.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2034-12-19T23:42:28Z&st=2024-12-19T15:42:28Z&spr=https&sig=KWLVjUi%2BBh2FA%2B6VAfUIUBlgQRz7yaQrduCSSBdVs0g%3D
+
+**Option 2 — command line:**
+```bash
+pip install -U "huggingface_hub[cli]"
+hf download luohwu/UltraBones100k --repo-type dataset --local-dir data/UltraBones100k
+# older huggingface_hub versions: use `huggingface-cli download` with the same arguments
 ```
+
+After downloading, unzip each `specimenXX.zip` so that the folder structure shown below is restored under `data/UltraBones100k/`.
 
 ## More anatomies
 We are currently collecting data for additional anatomies, including the spine and hip bones. Stay tuned for updates!
